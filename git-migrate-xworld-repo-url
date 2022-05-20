@@ -1,5 +1,5 @@
 #! /bin/sh
-# Version 2022.140.3
+# Version 2022.140.4
 # Copyright (c) 2022 Guenther Brunthaler. All rights reserved.
 #
 # This script is free software.
@@ -14,9 +14,11 @@ trap 'test $? = 0 || echo "\"$0\" failed!" >& 2' 0 INT TERM QUIT HUP
 mandatory_prefix='tag:xworld.mine.nu,2009:'
 
 dry_run=false
-while getopts n opt
+search_only=false
+while getopts ns opt
 do
 	case $opt in
+		s) search_only=true;;
 		n) dry_run=true;;
 		*) false || exit
 	esac
@@ -94,13 +96,29 @@ migrate_any() {
 	)
 }
 
-migrate() {
+migrate_repos() {
 	migrate_any "$1" && rc=$? || rc=$?
 	case $rc in
 		$rc_nothing_done) ;;
 		0) none=false;;
 		*) exit $rc
 	esac
+}
+
+migrate() {
+	if $search_only
+	then
+		case $1 in
+			-*) tree_root=./$1;;
+			*) tree_root=$1;;
+		esac
+		test -d "$tree_root"
+		find -H "$tree_root" \
+			-name "*.git" -prune -user `id -u` -perm -700 -print \
+		| sed 's|/\.git$||'
+	else
+		migrate_repos "$1"
+	fi
 }
 
 test $# = 0 && set .
