@@ -1,5 +1,5 @@
 #! /bin/sh
-# Version 2022.140.2
+# Version 2022.140.3
 # Copyright (c) 2022 Guenther Brunthaler. All rights reserved.
 #
 # This script is free software.
@@ -105,7 +105,7 @@ migrate() {
 
 test $# = 0 && set .
 none=true
-if test $# = 1 && test "$!" = -
+if test $# = 1 && test "$1" = -
 then
 	while IFS= read -r repopath
 	do
