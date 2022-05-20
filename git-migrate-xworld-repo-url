@@ -5,7 +5,113 @@
 # This script is free software.
 # Distribution is permitted under the terms of the GPLv3.
 
+strip_prefix='tilde_anyone-someplace-'
+replace_with='someplace-'
+rc_nothing_done=99
+
 set -e
 trap 'test $? = 0 || echo "\"$0\" failed!" >& 2' 0 INT TERM QUIT HUP
+mandatory_prefix='tag:xworld.mine.nu,2009:'
 
-git config --get-regexp '^remote\.[^.]+\.url$'
+dry_run=false
+while getopts n opt
+do
+	case $opt in
+		n) dry_run=true;;
+		*) false || exit
+	esac
+done
+shift `expr $OPTIND - 1 || :`
+
+println() {
+	printf '%s\n' "$*"
+}
+
+qbre() {
+	println "$1" | sed 's/[[.\\*]/\\&/g'
+}
+
+qin() {
+	println "$1" | sed '
+		/^[-+=_.,\/%[:alnum:]]*$/ b
+		s/["`$]/\\&/g
+		s/.*/"&"/
+	'
+}
+
+qcmd() {
+	cmdline=
+	for arg
+	do
+		cmdline=$cmdline${cmdline:+ }"`qin "$arg"`"
+	done
+	println "$cmdline"
+}
+
+migrate_any() {
+	test -d "$1"
+	case $1 in
+		*.git) test -f "$1/config";;
+		*) test -f "$1/.git/config"
+	esac
+	git config --local --get-regexp '^remote\.[^.]+\.url$' \
+	| {
+		ret=$rc_nothing_done
+		while IFS=' ' read -r key value
+		do
+			oldurl=$value
+			case $value in
+				"$mandatory_prefix"*) ;;
+				*) continue
+			esac
+			value=${value#"$mandatory_prefix"}
+			case $value in
+				"$strip_prefix"*) ;;
+				*) continue
+			esac
+			newurl=$mandatory_prefix$replace_with
+			newurl=$newurl${value#"$strip_prefix"}
+			set git config --local "$key" "$newurl"
+			if $dry_run
+			then
+				echo "[SIMULATION] For old URL `qin "$oldurl"`"
+				echo "[SIMULATION] Execute: `qcmd "$@"`"
+				echo
+			else
+				echo "Substituting URL `qin "$newurl"` for `
+					qin "$oldurl"`."
+				"$@"
+			fi
+			ret=0
+		done
+		exit $ret
+	}
+}
+
+migrate() {
+	migrate_any "$1" && rc=$? || rc=$?
+	case $rc in
+		$rc_nothing_done) ;;
+		0) none=false;;
+		*) exit $rc
+	esac
+}
+
+test $# = 0 && set .
+none=true
+if test $# = 1 && test "$!" = -
+then
+	while IFS= read -r repopath
+	do
+		migrate "$repopath"
+	done
+else
+	for repopath
+	do
+		migrate "$repopath"
+	done
+fi
+if $none
+then
+	echo "(Nothing to be done.)" >& 2
+fi
