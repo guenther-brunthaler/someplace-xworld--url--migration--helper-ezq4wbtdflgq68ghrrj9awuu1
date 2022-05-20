@@ -1,0 +1,11 @@
+#! /bin/sh
+# Version 2022.140
+# Copyright (c) 2022 Guenther Brunthaler. All rights reserved.
+#
+# This script is free software.
+# Distribution is permitted under the terms of the GPLv3.
+
+set -e
+trap 'test $? = 0 || echo "\"$0\" failed!" >& 2' 0 INT TERM QUIT HUP
+
+git config --get-regexp '^remote\.[^.]+\.url$'
