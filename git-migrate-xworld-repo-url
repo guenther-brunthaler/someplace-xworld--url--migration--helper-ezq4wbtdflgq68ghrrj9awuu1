@@ -1,5 +1,5 @@
 #! /bin/sh
-# Version 2022.140.1
+# Version 2022.140.2
 # Copyright (c) 2022 Guenther Brunthaler. All rights reserved.
 #
 # This script is free software.
@@ -48,45 +48,50 @@ qcmd() {
 	println "$cmdline"
 }
 
+migrate_branch() {
+	rc=$rc_nothing_done
+	while IFS=' ' read -r key value
+	do
+		oldurl=$value
+		case $value in
+			"$mandatory_prefix"*) ;;
+			*) continue
+		esac
+		value=${value#"$mandatory_prefix"}
+		case $value in
+			"$strip_prefix"*) ;;
+			*) continue
+		esac
+		newurl=$mandatory_prefix$replace_with
+		newurl=$newurl${value#"$strip_prefix"}
+		set git config --local "$key" "$newurl"
+		if $dry_run
+		then
+			echo "[SIMULATION] For old URL `qin "$oldurl"`"
+			echo "[SIMULATION] Execute: `qcmd "$@"`"
+			echo
+		else
+			echo "Substituting URL `qin "$newurl"` for `
+				qin "$oldurl"`."
+			echo
+			"$@"
+		fi
+		rc=0
+	done
+	return $rc
+}
+
 migrate_any() {
 	test -d "$1"
 	case $1 in
 		*.git) test -f "$1/config";;
 		*) test -f "$1/.git/config"
 	esac
-	git config --local --get-regexp '^remote\.[^.]+\.url$' \
-	| {
-		ret=$rc_nothing_done
-		while IFS=' ' read -r key value
-		do
-			oldurl=$value
-			case $value in
-				"$mandatory_prefix"*) ;;
-				*) continue
-			esac
-			value=${value#"$mandatory_prefix"}
-			case $value in
-				"$strip_prefix"*) ;;
-				*) continue
-			esac
-			newurl=$mandatory_prefix$replace_with
-			newurl=$newurl${value#"$strip_prefix"}
-			set git config --local "$key" "$newurl"
-			if $dry_run
-			then
-				echo "[SIMULATION] For old URL `qin "$oldurl"`"
-				echo "[SIMULATION] Execute: `qcmd "$@"`"
-				echo
-			else
-				echo "Substituting URL `qin "$newurl"` for `
-					qin "$oldurl"`."
-				echo
-				"$@"
-			fi
-			ret=0
-		done
-		exit $ret
-	}
+	(
+		cd -- "$1"
+		git config --local --get-regexp '^remote\.[^.]+\.url$' \
+		| migrate_branch
+	)
 }
 
 migrate() {
